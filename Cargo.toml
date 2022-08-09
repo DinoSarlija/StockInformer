@@ -1,0 +1,37 @@
+[package]
+name = "stocks"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+yahoo_finance_api = "1.2.2"
+chrono = { version = "0.4.19", features = ["serde"] }
+reqwest = "0.11.11"
+tokio = "1.20.0"
+tokio-test = "0.4.2"
+diesel = { version = "1.4.4", features = ["postgres", "chrono", "r2d2"] }
+dotenv = "0.15.0"
+pwhash = "1.0.0"
+actix-web = "4"
+log = "0.4.17"
+env_logger = "0.9.0"
+serde = "1.0.140"
+r2d2 = "0.8.10"
+jsonwebtoken = "8.1.1"
+actix-identity = "0.5.2"
+validator = { version = "0.15", features = ["derive"] }
+regex = "1.6.0"
+futures = "0.3.21"
+actix-service = "2.0.2"
+base64 = "0.13.0"
+actix-cors = "0.6.1"
+
+[dependencies.uuid]
+version = "1.1.2"
+features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]
