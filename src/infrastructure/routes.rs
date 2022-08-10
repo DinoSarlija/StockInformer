@@ -78,16 +78,9 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
             .route(web::get().to(setup::tickers_from_portfolio))
             .wrap(crate::infrastructure::middleware::LoggedGuard),
     );
-    cfg.service(
-        web::resource("/ticker/search/{name}")
-            .route(web::get().to(setup::ticker_search))
-            .wrap(crate::infrastructure::middleware::LoggedGuard)
-            .wrap(crate::infrastructure::middleware::LoggedGuard),
-    );
+    cfg.service(web::resource("/ticker/search/{name}").route(web::get().to(setup::ticker_search)));
     cfg.service(
         web::resource("/ticker/search/{name}/extended")
-            .route(web::get().to(setup::ticker_extensive_search))
-            .wrap(crate::infrastructure::middleware::LoggedGuard)
-            .wrap(crate::infrastructure::middleware::LoggedGuard),
+            .route(web::get().to(setup::ticker_extensive_search)),
     );
 }

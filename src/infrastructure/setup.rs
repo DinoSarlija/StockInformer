@@ -162,10 +162,12 @@ pub fn verify_email(email: String) -> bool {
 }
 
 pub fn verify_password(passwrod: String) -> bool {
-    let password_regex = Regex::new(r"^([^\s{2}].)?(\P{Ll}*\p{Ll})?(\P{Lu}*\p{Lu})?(\P{N}*\p{N})?([\p{L}\p{N}]*[^\p{L}\p{N}])[\s\S]{8,}").unwrap();
+    let password_regex = Regex::new(
+        r"^(\P{Ll}*\p{Ll})(\P{Lu}*\p{Lu})(\P{N}*\p{N})([\p{L}\p{N}]*[^\p{L}\p{N}])[\s\S]{8,}$",
+    )
+    .unwrap();
 
     //let password_regex = Regex::new(r"^([^\s{2}].)[\s\S]{6,}$").unwrap();
-    println!("end");
     password_regex.is_match(&passwrod) == true
 }
 
@@ -316,10 +318,7 @@ pub struct IdOrSymbol {
     symbol: String,
 }
 
-pub async fn get_latest_ticker_info(
-    id_or_symbol: web::Json<IdOrSymbol>,
-    data: web::Data<infrastructure::state::AppState>,
-) -> impl Responder {
+pub async fn get_latest_ticker_info(id_or_symbol: web::Json<IdOrSymbol>) -> impl Responder {
     let mut id = id_or_symbol.id.clone();
     let symbol = id_or_symbol.symbol.clone();
     if id.len() != 36 {
@@ -571,4 +570,133 @@ pub async fn get_stocks_dividends(
     }
 
     return Ok(tickers_dividend);
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::{
+        from_timestamp_to_datetime, get_latest_ticker_info, verify_email, verify_password,
+        IdOrSymbol, TickerView,
+    };
+    use actix_web::{web, HttpResponse, Responder};
+    use chrono::{DateTime, NaiveDate, Utc};
+
+    #[test]
+    fn test_verify_email_valid() {
+        let email: String = String::from("test@mail.com");
+        assert_eq!(verify_email(email), true);
+    }
+
+    #[test]
+    fn test_verify_email_invalid1() {
+        let email: String = String::from("@mail.com");
+        assert_eq!(verify_email(email), false);
+    }
+
+    #[test]
+    fn test_verify_email_invalid2() {
+        let email: String = String::from("testmail.com");
+        assert_eq!(verify_email(email), false);
+    }
+
+    #[test]
+    fn test_verify_email_invalid3() {
+        let email: String = String::from("test@.com");
+        assert_eq!(verify_email(email), false);
+    }
+
+    #[test]
+    fn test_verify_email_invalid4() {
+        let email: String = String::from("test@mail.");
+        assert_eq!(verify_email(email), false);
+    }
+
+    #[test]
+    fn test_verify_email_invalid5() {
+        let email: String = String::from("testmailcom");
+        assert_eq!(verify_email(email), false);
+    }
+    #[test]
+    fn test_verify_email_invalid6() {
+        let email: String = String::from("");
+        assert_eq!(verify_email(email), false);
+    }
+    #[test]
+    fn test_verify_email_invalid7() {
+        let email: String = String::from("       ");
+        assert_eq!(verify_email(email), false);
+    }
+
+    #[test]
+    fn test_verify_password_valid() {
+        let password: String = String::from("pA5!ssword12");
+        assert_eq!(verify_password(password), true);
+    }
+
+    #[test]
+    fn test_verify_password_invalid() {
+        let password: String = String::from("         ");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid2() {
+        let password: String = String::from("12345678");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid3() {
+        let password: String = String::from("password");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid4() {
+        let password: String = String::from("password1");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid5() {
+        let password: String = String::from("password1!");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid6() {
+        let password: String = String::from("PASSWORD");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid7() {
+        let password: String = String::from("PASSWORD1");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid8() {
+        let password: String = String::from("PASSWORD1!");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_verify_password_invalid9() {
+        let password: String = String::from("Test1?");
+        assert_eq!(verify_password(password), false);
+    }
+
+    #[test]
+    fn test_from_timestamp_to_datetime() {
+        //01.01.2022. 00:00:00
+        let timestamp = 1640995200;
+        let timestamp_string = timestamp.to_string();
+
+        let datetime: DateTime<Utc> =
+            DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2022, 1, 1).and_hms(0, 0, 0), Utc);
+
+        assert_eq!(from_timestamp_to_datetime(timestamp_string), datetime);
+    }
 }
