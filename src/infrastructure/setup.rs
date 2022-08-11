@@ -492,7 +492,10 @@ pub async fn get_stocks_name(tickers: &Vec<Ticker>) -> Result<Vec<String>, Yahoo
 
     for ticker in tickers {
         let name = match provider.search_ticker(&ticker.name).await {
-            Ok(result) => result.quotes[0].long_name.clone(),
+            Ok(result) => match result.quotes.first() {
+                Some(item) => item.long_name.clone(),
+                None => return Err(YahooError::EmptyDataSet),
+            },
             Err(err) => return Err(err),
         };
 
@@ -576,11 +579,11 @@ pub async fn get_stocks_dividends(
 mod tests {
 
     use super::{
-        from_timestamp_to_datetime, get_latest_ticker_info, verify_email, verify_password,
-        IdOrSymbol, TickerView,
+        from_timestamp_to_datetime, get_stocks_dividends, get_stocks_name, get_stocks_values,
+        verify_email, verify_password, Ticker,
     };
-    use actix_web::{web, HttpResponse, Responder};
     use chrono::{DateTime, NaiveDate, Utc};
+    use yahoo_finance_api::Quote;
 
     #[test]
     fn test_verify_email_valid() {
@@ -698,5 +701,153 @@ mod tests {
             DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2022, 1, 1).and_hms(0, 0, 0), Utc);
 
         assert_eq!(from_timestamp_to_datetime(timestamp_string), datetime);
+    }
+
+    #[test]
+    fn test_get_stocks_name_valid() {
+        let ticker1: Ticker = Ticker::new(String::from("AAPL"), String::from("12345678"));
+        let ticker2: Ticker = Ticker::new(String::from("GS"), String::from("87654321"));
+        let tickers: Vec<Ticker> = vec![ticker1, ticker2];
+
+        let names: Vec<String> = vec![
+            String::from("Apple Inc."),
+            String::from("The Goldman Sachs Group, Inc."),
+        ];
+
+        let result = futures::executor::block_on(get_stocks_name(&tickers)).unwrap();
+
+        assert_eq!(result, names);
+    }
+
+    #[test]
+    fn test_get_stocks_name_invalid() {
+        // APPL does not exists, but he found some other tickers and first is AAPL
+        let ticker1: Ticker = Ticker::new(String::from("APPL"), String::from("12345678"));
+        let ticker2: Ticker = Ticker::new(String::from("GS"), String::from("87654321"));
+        let tickers: Vec<Ticker> = vec![ticker1, ticker2];
+
+        let names: Vec<String> = vec![String::from("The Goldman Sachs Group, Inc.")];
+
+        let result = futures::executor::block_on(get_stocks_name(&tickers)).unwrap();
+
+        assert_ne!(result, names);
+    }
+
+    #[test]
+    fn test_get_stocks_name_invalid2() {
+        // APPP does not exists
+        let ticker1: Ticker = Ticker::new(String::from("APPP"), String::from("12345678"));
+        let ticker2: Ticker = Ticker::new(String::from("GS"), String::from("87654321"));
+        let tickers: Vec<Ticker> = vec![ticker1, ticker2];
+
+        let result = futures::executor::block_on(get_stocks_name(&tickers));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_stocks_values_valid() {
+        let provider = yahoo_finance_api::YahooConnector::new();
+
+        let mut quotes: Vec<Quote> = Vec::new();
+        let quote = match futures::executor::block_on(provider.get_quote_range("MSFT", "1d", "6mo"))
+            .unwrap()
+            .last_quote()
+        {
+            Ok(result) => result,
+            Err(err) => panic!("{:?}", err),
+        };
+        quotes.push(quote);
+        let quote = match futures::executor::block_on(provider.get_quote_range("IBM", "1d", "6mo"))
+            .unwrap()
+            .last_quote()
+        {
+            Ok(result) => result,
+            Err(err) => panic!("{:?}", err),
+        };
+        quotes.push(quote);
+
+        let ticker1: Ticker = Ticker::new(String::from("MSFT"), String::from("12345678"));
+        let ticker2: Ticker = Ticker::new(String::from("IBM"), String::from("87654321"));
+        let tickers: Vec<Ticker> = vec![ticker1, ticker2];
+
+        let result = futures::executor::block_on(get_stocks_values(&tickers, None, None)).unwrap();
+
+        assert_eq!(result, quotes);
+    }
+
+    #[test]
+    fn test_get_stocks_values_invalid() {
+        let provider = yahoo_finance_api::YahooConnector::new();
+
+        let mut quotes: Vec<Quote> = Vec::new();
+        let quote = match futures::executor::block_on(provider.get_quote_range("MSFT", "1d", "6mo"))
+            .unwrap()
+            .last_quote()
+        {
+            Ok(result) => result,
+            Err(err) => panic!("{:?}", err),
+        };
+        quotes.push(quote);
+        let quote = match futures::executor::block_on(provider.get_quote_range("IBM", "1d", "6mo"))
+            .unwrap()
+            .last_quote()
+        {
+            Ok(result) => result,
+            Err(err) => panic!("{:?}", err),
+        };
+        quotes.push(quote);
+
+        // IBMZ does not exists
+        let ticker1: Ticker = Ticker::new(String::from("MSFT"), String::from("12345678"));
+        let ticker2: Ticker = Ticker::new(String::from("IBMZ"), String::from("87654321"));
+        let tickers: Vec<Ticker> = vec![ticker1, ticker2];
+
+        let result = futures::executor::block_on(get_stocks_values(&tickers, None, None));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_stocks_dividends_valid() {
+        let provider = yahoo_finance_api::YahooConnector::new();
+
+        let dividend =
+            match futures::executor::block_on(provider.get_quote_range("MSFT", "1d", "6mo"))
+                .unwrap()
+                .dividends()
+            {
+                Ok(dividends) => dividends.clone().pop().unwrap(),
+                Err(err) => panic!("{:?}", err),
+            };
+
+        let ticker: Ticker = Ticker::new(String::from("MSFT"), String::from("12345678"));
+        let tickers: Vec<Ticker> = vec![ticker];
+
+        let result = futures::executor::block_on(get_stocks_dividends(&tickers, None, None))
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        let equal: bool;
+
+        if result.amount == dividend.amount && result.date == dividend.date {
+            equal = true;
+        } else {
+            equal = false;
+        };
+
+        assert!(equal);
+    }
+
+    #[test]
+    fn test_get_stocks_dividends_invalid() {
+        // IBMZ does not exists
+        let ticker: Ticker = Ticker::new(String::from("IBMZ"), String::from("12345678"));
+        let tickers: Vec<Ticker> = vec![ticker];
+
+        let result = futures::executor::block_on(get_stocks_dividends(&tickers, None, None));
+
+        assert!(result.is_err());
     }
 }
